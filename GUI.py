@@ -69,7 +69,7 @@ class Ui_mainWindow(object):
         self.opacitySld.setObjectName("opacitySld")
         self.opacityGrid.addWidget(self.opacitySld)
         self.gridLayout_2.addLayout(self.opacityGrid, 5, 0, 1, 1)
-        self.displayWgt = WebView(self.widget)
+        self.displayWgt = WebTab(self.widget)
         sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Expanding)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
@@ -102,4 +102,4 @@ class Ui_mainWindow(object):
         _translate = QtCore.QCoreApplication.translate
         mainWindow.setWindowTitle(_translate("mainWindow", "MainWindow"))
         self.opacityLab.setText(_translate("mainWindow", "90%"))
-from utils import WebView
+from utils import WebTab
