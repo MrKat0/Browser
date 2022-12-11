@@ -1,5 +1,4 @@
-from requests import Session
-from urllib import parse
+from urllib import parse, request
 from GUI import Ui_mainWindow 
 from PyQt5.QtWebEngineWidgets import *
 from PyQt5.QtWidgets import *
@@ -7,24 +6,24 @@ from PyQt5.QtGui import *
 from PyQt5.uic import loadUi
 from PyQt5.QtCore import *
 from PyQt5 import *
-import socket
+import keyboard as kb
 import sys
 import re
 
-class Browser(QMainWindow):
+class Browser(QMainWindow): # Defining the class browser
     regex = re.compile('((https:\/\/|http:\/\/)?(www\.)?[\w]{2,20}(\.[a-z]{2,4}){1,3})')
     prevMousePos = QPointF()
+    closeSgn = pyqtSignal()
 
     def __init__(self): 
         super().__init__()
         self.ui = Ui_mainWindow()
         self.ui.setupUi(self)
-        self.ui.displayWgt.cookies.deleteAllCookies()
         self.__init_UI__()
 
     def __init_UI__(self): 
         self.prevGeo = self.geometry()   
-        self.setWindowFlags(Qt.FramelessWindowHint | Qt.CustomizeWindowHint | Qt.WindowStaysOnTopHint)
+        self.setWindowFlags(Qt.FramelessWindowHint | Qt.CustomizeWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
         # self.setAttribute(Qt.WA_TranslucentBackground, True)
 
         self.ui.head.installEventFilter(self)
@@ -34,19 +33,20 @@ class Browser(QMainWindow):
         qtRectangle.moveCenter(centerPoint)
         self.move(qtRectangle.topLeft())
 
-        self.ui.displayWgt.goto('https://google.com')
+        self.ui.displayWgt.currentWidget().goto('https://google.com')
         self.setWindowOpacity(0.9)
         self.ui.opacityLab.setText(f'Opacity: {self.ui.opacitySld.value()}%')
 
         self.ui.srchBtn.clicked.connect(self.search)
         self.ui.srchLine.returnPressed.connect(self.search)
-        self.ui.displayWgt.urlChanged.connect(lambda: self.ui.srchLine.setText(self.ui.displayWgt.url().toString()))
-        self.ui.displayWgt.urlChanged.connect(lambda: self.ui.srchLine.setCursorPosition(0))
+        self.ui.displayWgt.currentWidget().urlChanged.connect(lambda: self.ui.srchLine.setText(self.ui.displayWgt.currentWidget().url().toString()))
+        self.ui.displayWgt.currentWidget().urlChanged.connect(lambda: self.ui.srchLine.setCursorPosition(0))
+        self.ui.displayWgt.tabChangeSgn.connect(self.ui.srchLine.setText)
         self.ui.opacitySld.valueChanged.connect(lambda: self.setWindowOpacity(float(self.ui.opacitySld.value()/100)))
         self.ui.opacitySld.valueChanged.connect(lambda: self.ui.opacityLab.setText(f'Opacity: {self.ui.opacitySld.value()}%'))
-        self.ui.backwardBtn.pressed.connect(self.ui.displayWgt.back)
-        self.ui.forwardBtn.pressed.connect(self.ui.displayWgt.forward)
-        self.ui.refreshBtn.pressed.connect(self.ui.displayWgt.reload)
+        self.ui.backwardBtn.pressed.connect(self.ui.displayWgt.currentWidget().back)
+        self.ui.forwardBtn.pressed.connect(self.ui.displayWgt.currentWidget().forward)
+        self.ui.refreshBtn.pressed.connect(self.ui.displayWgt.currentWidget().reload)
         self.ui.sizeAdjustBtn.clicked.connect(lambda: self.setWindowState(self.windowState() ^ Qt.WindowState.WindowMaximized))
         self.ui.closeBtn.clicked.connect(self.close)
 
@@ -60,7 +60,7 @@ class Browser(QMainWindow):
         else:
             url = f'https://www.google.com/search?' + parse.urlencode({'q':text})
         self.ui.srchLine.setText(url)
-        self.ui.displayWgt.goto(url)
+        self.ui.displayWgt.currentWidget().goto(url)
 
     def eventFilter(self, obj: QObject, event: QEvent):
         if obj.objectName() == 'head':
@@ -79,7 +79,7 @@ class Browser(QMainWindow):
                     if event.button() == Qt.MouseButton.LeftButton:
                         self.prevMousePos = event.globalPos()
                     if event.button() == Qt.MouseButton.BackButton:
-                        self.ui.displayWgt.back()
+                        self.ui.displayWgt.currentWidget().back()
                 
                 if event.type() == QEvent.MouseMove:
                     if self.windowState() == Qt.WindowFullScreen or self.windowState() == Qt.WindowMaximized:
@@ -94,7 +94,37 @@ class Browser(QMainWindow):
 
         return super().eventFilter(obj, event)
 
+    def closeEvent(self, a0: QCloseEvent) -> None:
+        self.closeSgn.emit()
+        return super().closeEvent(a0)
+
+
+class KeyboardShortcuts(QObject):
+    showSgn = pyqtSignal()
+    stopSgn = pyqtSignal()
+    def __init__(self, parent):
+        super().__init__(parent)
+        kb.add_hotkey('win+shift+k', self.showSgn.emit, suppress=True, trigger_on_release=True)
+        kb.add_hotkey('ctrl+f12', self.stopSgn.emit, suppress=True)
+
+
+class App(QApplication):
+    def __init__(self, argv):
+        super().__init__(argv)
+        self.manager = KeyboardShortcuts(self)
+        self.manager.showSgn.connect(self.start)
+        self.manager.stopSgn.connect(self.exit)
+        self.win =None
+
+    def start(self):
+        if not self.win:
+            self.win = Browser()
+            self.win.closeSgn.connect(self.start)
+        else:
+            self.win.close()
+            self.win = None
+
+
 if __name__ == '__main__':
-    app = QApplication(sys.argv)
-    win = Browser()
-    app.exec()
+    app = App(sys.argv)
+    app.exec_()
